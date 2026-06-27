@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Marino 007 — Open Claw A.I. Agent
+Marino 007 — A.I. Agent
 Powered by Marino Santos
 """
 
@@ -10,7 +10,7 @@ import datetime
 from pathlib import Path
 import anthropic
 
-SYSTEM_PROMPT = """You are Marino 007, an elite Open Claw A.I. agent built for Los Iconos de la Bachata — a bachata dance music brand.
+SYSTEM_PROMPT = """You are Marino 007, an elite A.I. Agent built for Los Iconos de la Bachata — a bachata dance music brand.
 
 Your mission:
 - Help with marketing strategy, content creation, and campaign planning for the brand
@@ -210,7 +210,7 @@ def main():
     messages = []
 
     print("=" * 60)
-    print("  MARINO 007 — Open Claw A.I. Agent")
+    print("  MARINO 007 — A.I. Agent")
     print("  Los Iconos de la Bachata | Powered by Marino Santos")
     print("=" * 60)
     print("Type your message. Commands: 'exit' or 'quit' to leave, 'clear' to reset.\n")
