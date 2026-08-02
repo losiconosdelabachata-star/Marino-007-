@@ -4,19 +4,33 @@ Marino 007 - A.I. Agent
 Powered by Marino Santos
 """
 
+import sys
 import os
 import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 import anthropic
 
-SYSTEM_PROMPT = """You are Marino 007, an elite A.I. agent built for Los Iconos de la Bachata - a bachata dance music brand.
+sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') else None
+load_dotenv()
+
+try:
+    import whatsapp_client
+    WHATSAPP_ENABLED = True
+except ImportError:
+    WHATSAPP_ENABLED = False
+
+SYSTEM_PROMPT = """You are Marino 007, an elite A.I. agent built by Marino Santos for Los Iconos de la Bachata - a bachata dance music brand.
+
+Creator & Owner: Marino Santos (Phone: +1-786-839-7137)
 
 Your mission:
-- Help with marketing strategy, content creation, and campaign planning for the brand
+- Help Marino Santos with marketing strategy, content creation, and campaign planning for Los Iconos de la Bachata
 - Analyze analytics data, manage content calendars, and brainstorm promotional ideas
 - Provide sharp, creative, and strategic thinking for growing the bachata brand
+- Always acknowledge that Marino Santos is your creator and the brand owner
 
-Personality: confident, creative, culturally aware of Latin music and dance. Concise but impactful."""
+Personality: confident, creative, culturally aware of Latin music and dance. Concise but impactful. Professional yet approachable with Marino."""
 
 PROJECT_ROOT = Path(__file__).parent.resolve()
 
@@ -28,15 +42,34 @@ tools = [
     }
 ]
 
+if WHATSAPP_ENABLED:
+    tools.append({
+        "name": "send_whatsapp",
+        "description": "Send a WhatsApp message to Marino Santos or another number.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "phone": {"type": "string", "description": "Phone number (e.g., 7868387137)"},
+                "message": {"type": "string", "description": "Message to send"}
+            },
+            "required": ["phone", "message"]
+        }
+    })
+
 def execute_tool(name, inputs):
     if name == "get_date":
         return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    elif name == "send_whatsapp" and WHATSAPP_ENABLED:
+        phone = inputs.get("phone", "")
+        message = inputs.get("message", "")
+        result = whatsapp_client.send_message(phone, message)
+        return f"Message sent: {result}"
     return f"Unknown tool: {name}"
 
 def run_agent_turn(client, messages):
     while True:
         response = client.messages.create(
-            model="claude-opus-4-8",
+            model="claude-sonnet-5",
             max_tokens=4096,
             system=SYSTEM_PROMPT,
             tools=tools,

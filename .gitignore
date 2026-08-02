@@ -1,0 +1,40 @@
+# ---- SECRETS: never commit ----
+.env
+.env.*
+!.env.example
+*.env.local
+google_photos_credentials.json
+google_drive_credentials.json
+google_ads_credentials.json
+*credentials.json
+*.pickle
+tokens/
+auth_info/
+
+# ---- Dependencies ----
+node_modules/
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# ---- Build / runtime artifacts ----
+.next/
+out/
+build/
+dist/
+*.db
+*.db-wal
+*.db-shm
+affiliates.db
+
+# ---- Local state ----
+processed_orders.json
+blog_tracker.json
+customer_emails.txt
+blogs/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.log
