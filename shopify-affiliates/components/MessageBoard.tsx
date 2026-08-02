@@ -1,31 +1,40 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import type { Affiliate, Message } from '@/lib/types';
 
-export default function MessageBoard({ affiliates }: { affiliates: any[] }) {
-  const [messages, setMessages] = useState([]);
+export default function MessageBoard({ affiliates }: { affiliates: Affiliate[] }) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
   const [isBroadcast, setIsBroadcast] = useState(true);
   const [selectedAffiliate, setSelectedAffiliate] = useState('');
+  const [sending, setSending] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch('/api/messages', { cache: 'no-store' });
+      const data = await res.json();
+      setMessages(data.messages || []);
+    } catch {
+      /* keep whatever is already on screen */
+    }
+  }, []);
 
   useEffect(() => {
     fetchMessages();
-  }, []);
-
-  async function fetchMessages() {
-    try {
-      const res = await fetch('/api/messages');
-      const data = await res.json();
-      setMessages(data.messages);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
-  }
+  }, [fetchMessages]);
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!messageText.trim()) return;
+    if (!isBroadcast && !selectedAffiliate) {
+      setNote('Pick an affiliate first.');
+      return;
+    }
 
+    setSending(true);
+    setNote(null);
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -37,29 +46,52 @@ export default function MessageBoard({ affiliates }: { affiliates: any[] }) {
           is_broadcast: isBroadcast,
         }),
       });
-
-      if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
         setMessageText('');
+        setNote(isBroadcast ? 'Broadcast sent to all active affiliates.' : 'Message sent.');
         fetchMessages();
+      } else {
+        setNote(data.error || 'Send failed.');
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
+    } catch {
+      setNote('Could not reach the server.');
+    } finally {
+      setSending(false);
     }
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Messages</h2>
-        <div className="bg-white rounded-lg shadow p-6 space-y-4 h-96 overflow-y-auto">
+        <p className="eyebrow mb-4">Transmission Log</p>
+        <div className="panel scroll-y max-h-[28rem] space-y-3 p-5">
           {messages.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No messages yet</p>
+            <p className="py-12 text-center text-sm" style={{ color: 'var(--text-dim)' }}>
+              No messages yet.
+            </p>
           ) : (
             messages.map((msg) => (
-              <div key={msg.id} className={`p-4 rounded-lg ${msg.from_id === 'admin' ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                <p className="text-sm font-semibold text-gray-900">{msg.from_id}</p>
-                <p className="text-gray-700 mt-2">{msg.message}</p>
-                <p className="text-xs text-gray-500 mt-2">
+              <div
+                key={msg.id}
+                className="rounded-lg p-4"
+                style={{
+                  background: 'rgba(6,9,20,0.6)',
+                  borderLeft: `2px solid ${msg.is_broadcast ? 'var(--gold)' : 'var(--cyan)'}`,
+                }}
+              >
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="mono text-[0.65rem]" style={{ color: 'var(--gold-bright)' }}>
+                    {msg.from_id.toUpperCase()}
+                  </span>
+                  {msg.is_broadcast === 1 && (
+                    <span className="mono text-[0.6rem]" style={{ color: 'var(--text-dim)' }}>
+                      · BROADCAST
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm leading-relaxed">{msg.message}</p>
+                <p className="mono mt-2 text-[0.6rem]" style={{ color: 'var(--text-dim)' }}>
                   {new Date(msg.created_at).toLocaleString()}
                 </p>
               </div>
@@ -68,27 +100,27 @@ export default function MessageBoard({ affiliates }: { affiliates: any[] }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Send Message</h3>
+      <div className="panel h-fit p-6">
+        <p className="eyebrow mb-4">Compose</p>
         <form onSubmit={handleSendMessage} className="space-y-4">
-          <div>
-            <label className="flex items-center">
+          <div className="space-y-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input
                 type="radio"
                 checked={isBroadcast}
                 onChange={() => setIsBroadcast(true)}
-                className="mr-2"
+                className="accent-amber-500"
               />
-              <span className="text-sm text-gray-700">Broadcast to All</span>
+              Broadcast to all
             </label>
-            <label className="flex items-center mt-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input
                 type="radio"
                 checked={!isBroadcast}
                 onChange={() => setIsBroadcast(false)}
-                className="mr-2"
+                className="accent-amber-500"
               />
-              <span className="text-sm text-gray-700">Send to One</span>
+              Send to one
             </label>
           </div>
 
@@ -96,12 +128,12 @@ export default function MessageBoard({ affiliates }: { affiliates: any[] }) {
             <select
               value={selectedAffiliate}
               onChange={(e) => setSelectedAffiliate(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="field w-full px-3 py-2 text-sm"
             >
-              <option value="">Select Affiliate</option>
-              {affiliates.map((aff) => (
-                <option key={aff.id} value={aff.id}>
-                  {aff.name}
+              <option value="">Select affiliate…</option>
+              {affiliates.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
                 </option>
               ))}
             </select>
@@ -110,18 +142,25 @@ export default function MessageBoard({ affiliates }: { affiliates: any[] }) {
           <textarea
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
-            placeholder="Type your message..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-            rows={4}
+            placeholder="Type your message…"
+            rows={5}
+            className="field w-full resize-none px-3 py-2 text-sm"
           />
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium"
+            disabled={sending || !messageText.trim()}
+            className="btn-gold w-full py-2.5 text-sm"
           >
-            Send Message
+            {sending ? 'Sending…' : isBroadcast ? 'Broadcast' : 'Send'}
           </button>
         </form>
+
+        {note && (
+          <p className="mono mt-3 text-xs" style={{ color: 'var(--cyan)' }}>
+            {note}
+          </p>
+        )}
       </div>
     </div>
   );

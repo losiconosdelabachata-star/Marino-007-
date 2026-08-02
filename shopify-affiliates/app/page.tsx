@@ -6,6 +6,7 @@ import WhatsAppPanel from '@/components/WhatsAppPanel';
 import AffiliatesList from '@/components/AffiliatesList';
 import MessageBoard from '@/components/MessageBoard';
 import SalesStats from '@/components/SalesStats';
+import type { Affiliate } from '@/lib/types';
 
 const TABS = [
   { id: 'command', label: 'Command' },
@@ -18,7 +19,7 @@ type TabId = (typeof TABS)[number]['id'];
 
 export default function Dashboard() {
   const [tab, setTab] = useState<TabId>('command');
-  const [affiliates, setAffiliates] = useState([]);
+  const [affiliates, setAffiliates] = useState<Affiliate[]>([]);
   const [clock, setClock] = useState('');
 
   useEffect(() => {

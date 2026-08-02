@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db, { initializeDatabase } from '@/lib/db';
+import type { Affiliate } from '@/lib/types';
 
 initializeDatabase();
 
 export async function GET() {
   try {
     const stmt = db.prepare('SELECT * FROM affiliates ORDER BY created_at DESC');
-    const affiliates = stmt.all();
+    const affiliates = stmt.all() as Affiliate[];
     return NextResponse.json({ affiliates });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Node 18+ provides a global fetch, so no polyfill import is needed here.
 
 const SHOPIFY_STORE = process.env.SHOPIFY_STORE;
 const API_KEY = process.env.SHOPIFY_API_KEY;

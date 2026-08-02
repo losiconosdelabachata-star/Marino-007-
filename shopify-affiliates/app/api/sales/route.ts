@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
+import type { AffiliateStats } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
       WHERE a.status = 'active'
     `;
 
-    const params: any[] = [];
+    const params: string[] = [];
 
     if (affiliateId) {
       query += ' AND a.id = ?';
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     query += ' GROUP BY a.id ORDER BY total_sales DESC';
 
     const stmt = db.prepare(query);
-    const stats = stmt.all(...params);
+    const stats = stmt.all(...params) as AffiliateStats[];
 
     return NextResponse.json({ stats });
   } catch (error) {

@@ -1,8 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 
-// The Python project root sits one level above this Next.js app.
-export const PROJECT_ROOT = path.resolve(process.cwd(), '..');
+/**
+ * The Python project root sits one level above this Next.js app.
+ * Resolved lazily and marked ignorable so the bundler does not try to trace
+ * the entire parent project into the build output.
+ */
+export function projectRoot(): string {
+  return path.resolve(/*turbopackIgnore: true*/ process.cwd(), '..');
+}
 
 export type SystemStatus = 'online' | 'offline' | 'degraded' | 'not_configured';
 
@@ -18,7 +24,7 @@ export interface SystemInfo {
 }
 
 function projectFile(...parts: string[]) {
-  return path.join(PROJECT_ROOT, ...parts);
+  return path.join(projectRoot(), ...parts);
 }
 
 function readJSON<T>(relPath: string): T | null {

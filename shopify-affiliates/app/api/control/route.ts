@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
-import { PROJECT_ROOT } from '@/lib/systems';
+import { projectRoot } from '@/lib/systems';
 
 /**
  * Strict allowlist. The client sends an action id only - never a path or
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Detached so the job outlives this request/response cycle.
     const child = spawn(spec.cmd, spec.args, {
-      cwd: PROJECT_ROOT,
+      cwd: projectRoot(),
       detached: true,
       stdio: 'ignore',
       shell: process.platform === 'win32',
