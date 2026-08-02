@@ -149,11 +149,15 @@ body {
 }
 
 /* Primary action: gold fill. Secondary: gold outline. */
+/* Buttons default to cursor:default, which reads as "not clickable". */
+button:not(:disabled) { cursor: pointer; }
+
 .btn-gold {
   background: linear-gradient(135deg, var(--gold), var(--gold-bright));
   color: #17130a;
   font-weight: 650;
   border-radius: 9px;
+  cursor: pointer;
   transition: filter 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
 }
 

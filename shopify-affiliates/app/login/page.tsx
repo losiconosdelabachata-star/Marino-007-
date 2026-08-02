@@ -1,24 +1,36 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+
+    // Read straight from the DOM. Browser autofill and password managers set
+    // the input value without firing React's onChange, so component state can
+    // still be empty while the field visibly contains the password.
+    const value = inputRef.current?.value ?? password;
+
+    if (!value) {
+      setError('Enter the password.');
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: value }),
       });
       const data = await res.json();
       if (data.success) {
@@ -49,6 +61,7 @@ function LoginForm() {
 
         <form onSubmit={submit} className="space-y-4">
           <input
+            ref={inputRef}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -57,7 +70,10 @@ function LoginForm() {
             autoComplete="current-password"
             className="field w-full px-4 py-3 text-sm"
           />
-          <button type="submit" disabled={busy || !password} className="btn-gold w-full py-3 text-sm">
+          {/* Only `busy` gates this. Gating on state would leave the button
+              dead whenever autofill populated the field without React
+              noticing - a filled form with an unclickable button. */}
+          <button type="submit" disabled={busy} className="btn-gold w-full py-3 text-sm">
             {busy ? 'Verifying…' : 'Enter'}
           </button>
         </form>
