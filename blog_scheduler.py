@@ -103,6 +103,32 @@ class BlogScheduler:
             print(f"❌ Error searching web: {e}")
             return []
 
+    def notify_whatsapp(self, blog_title, recipient_count):
+        """Tell Marino a post went live. Never fails the run - a missing
+        alert is not a reason to lose a published blog."""
+        try:
+            import whatsapp_client
+
+            status = whatsapp_client.check_status()
+            if not status.get('connected'):
+                print("   ⚠️  WhatsApp not linked - skipping alert")
+                print("      Re-link from the dashboard's WhatsApp panel.")
+                return
+
+            message = (
+                "📝 NEW BLOG POSTED\n"
+                f"{blog_title}\n\n"
+                f"📧 Emailed to {recipient_count} customers\n"
+                f"🕒 {datetime.now().strftime('%b %d, %Y at %I:%M %p')}"
+            )
+            result = whatsapp_client.send_to_marino(message)
+            if result.get('success'):
+                print("   ✅ WhatsApp alert sent")
+            else:
+                print(f"   ⚠️  Alert not delivered: {result.get('error', 'unknown')}")
+        except Exception as e:
+            print(f"   ⚠️  WhatsApp alert failed: {e}")
+
     def generate_daily_blog(self):
         """Generate and post a daily blog"""
         try:
@@ -194,6 +220,10 @@ class BlogScheduler:
             self.save_tracking()
             print("   ✅ Tracking updated")
 
+            # Step 9: Ping Marino on WhatsApp so a post never goes out unnoticed
+            print("\n9️⃣  Sending WhatsApp alert...")
+            self.notify_whatsapp(blog_title, len(customer_emails or []))
+
             print("\n" + "="*60)
             print("✅ DAILY BLOG COMPLETE!")
             print("="*60 + "\n")
@@ -233,11 +263,26 @@ class BlogScheduler:
             self.generate_daily_blog()
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Daily blog generator for Los Iconos")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Generate one post and exit. The dashboard's 'Post blog now' button uses this.",
+    )
+    parser.add_argument(
+        "--daemon",
+        action="store_true",
+        help="Stay running and publish on the schedule in .env (BLOG_SCHEDULE_HOUR).",
+    )
+    args = parser.parse_args()
+
     scheduler = BlogScheduler()
 
-    # Option 1: Generate single blog now
-    print("Generating one blog now...")
-    scheduler.generate_daily_blog()
-
-    # Option 2: Schedule for daily runs (uncomment to use)
-    # scheduler.schedule_daily_run()
+    if args.daemon:
+        scheduler.schedule_daily_run()
+    else:
+        # --once and the bare invocation both mean "one post, then exit"
+        print("Generating one blog now...")
+        scheduler.generate_daily_blog()

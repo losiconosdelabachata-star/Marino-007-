@@ -171,4 +171,18 @@ def start_automation():
         time.sleep(60)
 
 if __name__ == "__main__":
-    start_automation()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Shopify to Printify order automation")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Run a single sweep and exit, instead of scheduling forever. "
+             "The dashboard's 'Sweep orders' button uses this.",
+    )
+    args = parser.parse_args()
+
+    if args.once:
+        check_and_fulfill_orders()
+    else:
+        start_automation()
