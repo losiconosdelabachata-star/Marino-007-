@@ -1,26 +1,225 @@
 @import "tailwindcss";
 
+/*
+ * Los Iconos command center.
+ * Brand gold (#d4af37) carried into a deep-space console palette so the
+ * dashboard reads as "Los Iconos" rather than generic cyberpunk.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --void: #05060d;
+  --void-2: #0a0d1a;
+  --panel: rgba(16, 21, 38, 0.72);
+  --panel-edge: rgba(212, 175, 55, 0.16);
+  --gold: #d4af37;
+  --gold-bright: #f2d675;
+  --cyan: #35e8ff;
+  --magenta: #ff3ea5;
+  --text: #e8ecf8;
+  --text-dim: #7d88a8;
+  --online: #35ffa8;
+  --warn: #ffb534;
+  --offline: #ff4d6a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-background: var(--void);
+  --color-foreground: var(--text);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  /* The tab strip is wider than a phone; it scrolls inside .scroll-x rather
+     than dragging the whole page sideways. */
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--void);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* Layered starfield + horizon glow. Fixed so it never scrolls away. */
+.void-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 80% 55% at 50% -10%, rgba(212, 175, 55, 0.14), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 85% 15%, rgba(53, 232, 255, 0.09), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 10% 85%, rgba(255, 62, 165, 0.07), transparent 55%),
+    linear-gradient(180deg, var(--void) 0%, var(--void-2) 55%, var(--void) 100%);
+}
+
+/* Perspective grid receding toward the horizon. */
+.void-grid {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(212, 175, 55, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(212, 175, 55, 0.055) 1px, transparent 1px);
+  background-size: 54px 54px;
+  mask-image: linear-gradient(180deg, transparent, #000 22%, #000 62%, transparent 96%);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 22%, #000 62%, transparent 96%);
+  animation: grid-drift 22s linear infinite;
+}
+
+@keyframes grid-drift {
+  to { background-position: 0 54px, 0 0; }
+}
+
+/* Glassmorphic console panel with a gold hairline edge. */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 14px;
+  /* Emitted via Tailwind so Lightning CSS keeps it; a hand-written
+     backdrop-filter declaration gets stripped during the CSS build. */
+  @apply backdrop-blur-xl backdrop-saturate-150;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+    0 18px 46px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Light sweep across the top edge of every panel. */
+.panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.55), transparent);
+}
+
+.panel-hover {
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.panel-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(212, 175, 55, 0.42);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.6), 0 0 26px rgba(212, 175, 55, 0.12);
+}
+
+/* Section eyebrow: small, tracked-out, monospace. */
+.eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.glow-gold {
+  text-shadow: 0 0 22px rgba(212, 175, 55, 0.55);
+}
+
+/* Status LED with a breathing halo for live states. */
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.led-online {
+  background: var(--online);
+  box-shadow: 0 0 10px var(--online);
+  animation: led-pulse 2.1s ease-in-out infinite;
+}
+
+.led-warn {
+  background: var(--warn);
+  box-shadow: 0 0 10px var(--warn);
+  animation: led-pulse 1.3s ease-in-out infinite;
+}
+
+.led-offline { background: var(--offline); box-shadow: 0 0 10px var(--offline); }
+.led-idle { background: var(--text-dim); }
+
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Primary action: gold fill. Secondary: gold outline. */
+.btn-gold {
+  background: linear-gradient(135deg, var(--gold), var(--gold-bright));
+  color: #17130a;
+  font-weight: 650;
+  border-radius: 9px;
+  transition: filter 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.btn-gold:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 0 26px rgba(212, 175, 55, 0.42);
+}
+
+.btn-gold:active:not(:disabled) { transform: translateY(1px); }
+.btn-gold:disabled { opacity: 0.42; cursor: not-allowed; }
+
+.btn-ghost {
+  background: rgba(212, 175, 55, 0.07);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--gold-bright);
+  border-radius: 9px;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: rgba(212, 175, 55, 0.6);
+}
+
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.field {
+  background: rgba(6, 9, 20, 0.72);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 9px;
+  color: var(--text);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.field:focus {
+  outline: none;
+  border-color: rgba(212, 175, 55, 0.62);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.11);
+}
+
+.field::placeholder { color: var(--text-dim); }
+
+/* Tab underline that glows when active. */
+.tab-active {
+  color: var(--gold-bright);
+  border-bottom: 2px solid var(--gold);
+  box-shadow: 0 6px 18px -8px var(--gold);
+}
+
+.mono { font-family: var(--font-geist-mono), ui-monospace, monospace; }
+
+/* Wide content (tables, tab strips) scrolls inside its own container.
+   min-width:0 is required or flex children force the container to grow
+   instead of scrolling. */
+.scroll-x { overflow-x: auto; min-width: 0; }
+.scroll-x::-webkit-scrollbar,
+.scroll-y::-webkit-scrollbar { height: 7px; width: 7px; }
+.scroll-x::-webkit-scrollbar-thumb,
+.scroll-y::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.28);
+  border-radius: 99px;
+}
+.scroll-y { overflow-y: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .void-grid, .led-online, .led-warn { animation: none; }
+  .panel-hover { transition: none; }
+  .panel-hover:hover { transform: none; }
 }

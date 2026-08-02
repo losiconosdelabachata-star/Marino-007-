@@ -1,93 +1,118 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import SystemGrid from '@/components/SystemGrid';
+import WhatsAppPanel from '@/components/WhatsAppPanel';
 import AffiliatesList from '@/components/AffiliatesList';
 import MessageBoard from '@/components/MessageBoard';
 import SalesStats from '@/components/SalesStats';
 
+const TABS = [
+  { id: 'command', label: 'Command' },
+  { id: 'affiliates', label: 'Affiliates' },
+  { id: 'messages', label: 'Messages' },
+  { id: 'sales', label: 'Sales' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
+
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [tab, setTab] = useState<TabId>('command');
   const [affiliates, setAffiliates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [clock, setClock] = useState('');
 
   useEffect(() => {
-    fetchAffiliates();
+    fetch('/api/affiliates')
+      .then((r) => r.json())
+      .then((d) => setAffiliates(d.affiliates || []))
+      .catch(() => setAffiliates([]));
   }, []);
 
-  async function fetchAffiliates() {
-    try {
-      const res = await fetch('/api/affiliates');
-      const data = await res.json();
-      setAffiliates(data.affiliates);
-    } catch (error) {
-      console.error('Error fetching affiliates:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    const tick = () =>
+      setClock(
+        new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      );
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-3xl font-bold text-gray-900">Los Iconos Affiliate Hub</h1>
-          <p className="text-gray-600">Manage affiliates, track sales, and communicate</p>
-        </div>
-      </header>
+    <>
+      <div className="void-bg" />
+      <div className="void-grid" />
 
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-8">
-            {['overview', 'affiliates', 'messages', 'sales'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-3 py-4 text-sm font-medium ${
-                  activeTab === tab
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
+      <div className="mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <header className="mb-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="eyebrow mb-2">Los Iconos de la Bachata</p>
+              <h1
+                className="glow-gold text-3xl font-bold tracking-tight sm:text-4xl"
+                style={{ color: 'var(--gold-bright)' }}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                MARINO 007
+              </h1>
+              <p className="mt-1 text-sm" style={{ color: 'var(--text-dim)' }}>
+                Command center — every system, one screen.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="mono text-2xl" style={{ color: 'var(--cyan)' }}>
+                {clock}
+              </p>
+              <p className="eyebrow mt-1">Local time</p>
+            </div>
+          </div>
+        </header>
+
+        <nav className="mb-8 border-b" style={{ borderColor: 'rgba(212,175,55,0.14)' }}>
+          <div className="scroll-x flex gap-1">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`whitespace-nowrap px-5 py-3 text-sm font-medium transition-colors ${
+                  tab === t.id ? 'tab-active' : ''
+                }`}
+                style={tab === t.id ? undefined : { color: 'var(--text-dim)' }}
+              >
+                {t.label}
               </button>
             ))}
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading dashboard...</p>
-          </div>
-        ) : (
-          <>
-            {activeTab === 'overview' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-gray-600 text-sm font-medium">Total Affiliates</h3>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{affiliates.length}</p>
-                </div>
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-gray-600 text-sm font-medium">Active Affiliates</h3>
-                  <p className="text-3xl font-bold text-green-600 mt-2">
-                    {affiliates.filter((a: any) => a.status === 'active').length}
-                  </p>
-                </div>
-                <div className="bg-white p-6 rounded-lg shadow">
-                  <h3 className="text-gray-600 text-sm font-medium">Messages</h3>
-                  <p className="text-3xl font-bold text-blue-600 mt-2">0</p>
-                </div>
+        <main>
+          {tab === 'command' && (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <SystemGrid />
               </div>
-            )}
+              <div className="space-y-6">
+                <WhatsAppPanel />
+              </div>
+            </div>
+          )}
 
-            {activeTab === 'affiliates' && <AffiliatesList affiliates={affiliates} />}
-            {activeTab === 'messages' && <MessageBoard affiliates={affiliates} />}
-            {activeTab === 'sales' && <SalesStats affiliates={affiliates} />}
-          </>
-        )}
-      </main>
-    </div>
+          {tab === 'affiliates' && <AffiliatesList affiliates={affiliates} />}
+          {tab === 'messages' && <MessageBoard affiliates={affiliates} />}
+          {tab === 'sales' && <SalesStats affiliates={affiliates} />}
+        </main>
+
+        <footer
+          className="mono mt-14 border-t pt-6 text-center text-[0.65rem]"
+          style={{ borderColor: 'rgba(212,175,55,0.12)', color: 'var(--text-dim)' }}
+        >
+          MARINO 007 · BUILT BY MARINO SANTOS · LOS ICONOS DE LA BACHATA
+        </footer>
+      </div>
+    </>
   );
 }

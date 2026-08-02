@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const QRCode = require('qrcode');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 
 const app = express();
@@ -22,6 +23,11 @@ let receivedMessages = [];
 let socket = null;
 let isConnected = false;
 
+// Latest QR as a data URL so the dashboard can render it without terminal access
+let currentQR = null;
+let qrGeneratedAt = null;
+let lastDisconnectReason = null;
+
 // Load received messages from file
 function loadMessages() {
   if (fs.existsSync(MESSAGES_FILE)) {
@@ -38,31 +44,81 @@ function saveMessages() {
   fs.writeFileSync(MESSAGES_FILE, JSON.stringify(receivedMessages, null, 2));
 }
 
+// Guards against the runaway-socket bug: without these, every 'close' event
+// spawned another socket while the old one kept its listeners attached, so
+// sockets stacked up until they starved the event loop and Express stopped
+// answering requests.
+let connecting = false;
+let reconnectDelay = 2000;
+const MAX_RECONNECT_DELAY = 60000;
+
 // Initialize WhatsApp connection
 async function connectToWhatsApp() {
+  if (connecting) {
+    console.log('↩︎  Connect already in flight, skipping duplicate attempt');
+    return;
+  }
+  connecting = true;
+
+  // Tear down any previous socket so its listeners die with it.
+  if (socket) {
+    try {
+      socket.ev.removeAllListeners();
+      socket.end();
+    } catch (_) {
+      /* already dead */
+    }
+    socket = null;
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
   socket = makeWASocket({
     auth: state,
-    printQRInTerminal: true,
   });
 
-  socket.ev.on('connection.update', (update) => {
+  socket.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
+      // Render to a data URL so GET /qr can serve it to the dashboard
+      try {
+        currentQR = await QRCode.toDataURL(qr, { width: 400, margin: 2 });
+        qrGeneratedAt = new Date().toISOString();
+      } catch (err) {
+        console.error('Failed to render QR:', err.message);
+      }
+      // The socket is live and simply waiting on a human, so the attempt is
+      // no longer "in flight" - release the guard or /reconnect would refuse.
+      connecting = false;
       console.log('\n📱 QR Code generated. Scan it with your WhatsApp on the dedicated phone.');
-      console.log('Settings > Linked Devices > Link a Device\n');
+      console.log('Settings > Linked Devices > Link a Device');
+      console.log('Or open the dashboard and scan it there.\n');
     }
 
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log('Connection closed due to', lastDisconnect?.error, ', reconnecting:', shouldReconnect);
+      isConnected = false;
+      connecting = false;
+      const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      lastDisconnectReason = shouldReconnect ? 'connection_lost' : 'logged_out';
+      console.log('Connection closed:', statusCode, '| reconnecting:', shouldReconnect);
+
       if (shouldReconnect) {
-        connectToWhatsApp();
+        // Backoff, so a persistent failure can't become a hot loop.
+        console.log(`⏳ Reconnecting in ${reconnectDelay / 1000}s`);
+        setTimeout(connectToWhatsApp, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
+      } else {
+        console.log('🔒 Logged out. POST /reconnect with {"hard":true} to re-link.');
       }
     } else if (connection === 'open') {
       isConnected = true;
+      connecting = false;
+      reconnectDelay = 2000; // healthy again, reset backoff
+      currentQR = null; // linked, so the QR is spent
+      qrGeneratedAt = null;
+      lastDisconnectReason = null;
       console.log('✓ Connected to WhatsApp!');
     }
   });
@@ -92,7 +148,54 @@ async function connectToWhatsApp() {
 
 // HTTP Endpoints
 app.get('/status', (req, res) => {
-  res.json({ connected: isConnected, timestamp: new Date().toISOString() });
+  res.json({
+    connected: isConnected,
+    awaiting_scan: !isConnected && currentQR !== null,
+    last_disconnect_reason: lastDisconnectReason,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Serve the pairing QR to the dashboard so re-linking never needs terminal access
+app.get('/qr', (req, res) => {
+  if (isConnected) {
+    return res.json({ connected: true, qr: null, message: 'Already linked - no QR needed' });
+  }
+  if (!currentQR) {
+    return res.json({
+      connected: false,
+      qr: null,
+      message: 'No QR available yet. POST /reconnect to request one.',
+    });
+  }
+  res.json({ connected: false, qr: currentQR, generated_at: qrGeneratedAt });
+});
+
+// Force a fresh pairing cycle. `hard` wipes stored creds for a full re-link.
+app.post('/reconnect', async (req, res) => {
+  try {
+    const hard = req.body?.hard === true;
+
+    if (hard && fs.existsSync(AUTH_DIR)) {
+      fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+      fs.mkdirSync(AUTH_DIR, { recursive: true });
+      console.log('🗑️  Cleared stored credentials for a full re-link');
+    }
+
+    isConnected = false;
+    currentQR = null;
+    connecting = false; // an explicit request always wins over the guard
+    reconnectDelay = 2000;
+
+    await connectToWhatsApp();
+    res.json({
+      success: true,
+      hard_reset: hard,
+      message: 'Reconnect started. Poll GET /qr for the pairing code.',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 app.post('/send', async (req, res) => {
