@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import SystemGrid from '@/components/SystemGrid';
 import WhatsAppPanel from '@/components/WhatsAppPanel';
+import OpsConsole from '@/components/OpsConsole';
 import AffiliatesList from '@/components/AffiliatesList';
 import MessageBoard from '@/components/MessageBoard';
 import SalesStats from '@/components/SalesStats';
@@ -93,8 +94,9 @@ export default function Dashboard() {
         <main>
           {tab === 'command' && (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
+              <div className="space-y-6 lg:col-span-2">
                 <SystemGrid />
+                <OpsConsole />
               </div>
               <div className="space-y-6">
                 <WhatsAppPanel />

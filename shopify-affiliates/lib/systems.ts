@@ -75,6 +75,51 @@ function isConfigured(key: string): boolean {
   return !/^(WAITING|PENDING|WILL_ADD|your_|CHANGE_?ME)/i.test(value);
 }
 
+/**
+ * Actually calls Shopify rather than checking that a variable is non-empty.
+ *
+ * Presence is not health: the store was reported "online" for days while
+ * every request 404'd against a domain that does not exist, using a shared
+ * secret that cannot authenticate the Admin API at all.
+ */
+async function checkShopify(): Promise<{ status: SystemStatus; detail: string }> {
+  const store = envValue('SHOPIFY_STORE');
+  const token = envValue('SHOPIFY_API_PASSWORD');
+
+  if (!store || !token) {
+    return { status: 'not_configured', detail: 'Store or access token missing' };
+  }
+
+  if (token.startsWith('shpss_')) {
+    return {
+      status: 'not_configured',
+      detail: 'Token is a shared secret (shpss_) — needs an Admin API token (shpat_)',
+    };
+  }
+
+  try {
+    const res = await fetch(`https://${store}/admin/api/2025-01/shop.json`, {
+      headers: { 'X-Shopify-Access-Token': token },
+      signal: AbortSignal.timeout(4000),
+      cache: 'no-store',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return { status: 'online', detail: `Connected to ${data.shop?.name ?? store}` };
+    }
+    if (res.status === 401) {
+      return { status: 'offline', detail: 'Rejected: invalid API key or access token' };
+    }
+    if (res.status === 404) {
+      return { status: 'offline', detail: `No such store: ${store}` };
+    }
+    return { status: 'degraded', detail: `Shopify returned HTTP ${res.status}` };
+  } catch {
+    return { status: 'offline', detail: 'Could not reach Shopify' };
+  }
+}
+
 async function checkWhatsApp(): Promise<{ status: SystemStatus; detail: string }> {
   const url = envValue('WHATSAPP_SERVER_URL') || 'http://localhost:3000';
   try {
@@ -94,7 +139,7 @@ async function checkWhatsApp(): Promise<{ status: SystemStatus; detail: string }
 }
 
 export async function getSystems(): Promise<SystemInfo[]> {
-  const whatsapp = await checkWhatsApp();
+  const [whatsapp, shopify] = await Promise.all([checkWhatsApp(), checkShopify()]);
 
   const blogTracker = readJSON<{ processed_photos?: string[]; last_run?: string }>('blog_tracker.json');
   const orders = readJSON<Record<string, { timestamp?: string; amount?: string }>>('processed_orders.json');
@@ -106,7 +151,8 @@ export async function getSystems(): Promise<SystemInfo[]> {
     .sort()
     .pop();
 
-  const shopifyReady = isConfigured('SHOPIFY_API_KEY') && isConfigured('SHOPIFY_API_PASSWORD');
+  // Based on a live probe, not on a variable being non-empty.
+  const shopifyReady = shopify.status === 'online';
   const printifyReady = isConfigured('PRINTIFY_API_KEY');
   const adsReady =
     isConfigured('GOOGLE_ADS_DEVELOPER_TOKEN') && isConfigured('GOOGLE_ADS_REFRESH_TOKEN');
@@ -132,7 +178,7 @@ export async function getSystems(): Promise<SystemInfo[]> {
       blurb: 'Hourly Shopify sweep to Printify',
       status: shopifyReady && printifyReady ? 'online' : 'not_configured',
       detail: !shopifyReady
-        ? 'Shopify credentials missing'
+        ? `Blocked by Shopify: ${shopify.detail}`
         : !printifyReady
           ? 'Printify API key missing'
           : `${orderEntries.length} orders processed`,
@@ -143,8 +189,8 @@ export async function getSystems(): Promise<SystemInfo[]> {
       id: 'shopify',
       name: 'Shopify Store',
       blurb: 'losiconosdelabachata.com',
-      status: shopifyReady ? 'online' : 'not_configured',
-      detail: shopifyReady ? 'Admin API credentials present' : 'Add SHOPIFY_API_KEY / PASSWORD',
+      status: shopify.status,
+      detail: shopify.detail,
       lastActivity: null,
       script: null,
     },

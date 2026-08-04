@@ -19,32 +19,54 @@ API_VERSION = "2026-07"
 
 BASE_URL = f"https://{SHOPIFY_API_KEY}:{SHOPIFY_API_PASSWORD}@{SHOPIFY_STORE}/admin/api/{API_VERSION}"
 
+class ShopifyError(RuntimeError):
+    """Raised when Shopify cannot be reached or refuses the request.
+
+    This is deliberately not swallowed. Returning [] on an API failure makes
+    a broken connection look identical to "no orders today" - which would
+    quietly stop fulfilment while every dashboard read said things were fine.
+    """
+
+
 def get_recent_orders(hours: int = 1) -> List[Dict]:
-    """Get orders from the last N hours"""
+    """Get orders from the last N hours. Raises ShopifyError on failure."""
+    url = f"{BASE_URL}/orders.json"
+    params = {
+        "status": "any",
+        "limit": 50,
+        "fields": "id,order_number,email,created_at,total_price,line_items,shipping_address,fulfillment_status"
+    }
+
     try:
-        # Shopify's created_at_min parameter format
-        url = f"{BASE_URL}/orders.json"
-        params = {
-            "status": "any",
-            "limit": 50,
-            "fields": "id,order_number,email,created_at,total_price,line_items,shipping_address,fulfillment_status"
-        }
-
         response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
+    except requests.RequestException as e:
+        raise ShopifyError(f"Could not reach Shopify: {e}") from e
 
+    if response.status_code == 401:
+        raise ShopifyError(
+            "Shopify rejected the credentials (401). SHOPIFY_API_PASSWORD must be "
+            "an Admin API access token starting with 'shpat_', not an 'shpss_' "
+            "shared secret."
+        )
+    if response.status_code == 404:
+        raise ShopifyError(
+            f"Shopify returned 404 for store '{SHOPIFY_STORE}'. Check SHOPIFY_STORE "
+            "is the myshopify domain from Settings > Domains."
+        )
+    if not response.ok:
+        raise ShopifyError(f"Shopify returned HTTP {response.status_code}")
+
+    try:
         orders = response.json().get("orders", [])
+    except ValueError as e:
+        raise ShopifyError(f"Shopify returned a non-JSON response: {e}") from e
 
-        # Filter for unfulfilled orders only
-        unfulfilled = [
-            order for order in orders
-            if order.get("fulfillment_status") is None or order.get("fulfillment_status") in ["pending", "partial"]
-        ]
-
-        return unfulfilled
-    except Exception as e:
-        print(f"Error fetching orders: {e}")
-        return []
+    # Filter for unfulfilled orders only
+    return [
+        order for order in orders
+        if order.get("fulfillment_status") is None
+        or order.get("fulfillment_status") in ["pending", "partial"]
+    ]
 
 def get_order_details(order_id: str) -> Dict:
     """Get full details for a specific order"""
