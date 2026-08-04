@@ -12,8 +12,12 @@ app.use(cors());
 // 3000-3004 are taken by other local projects (Leon Business Center, eclat,
 // barbershop, the dashboard), so default clear of them.
 const PORT = process.env.WHATSAPP_PORT || 3010;
-const AUTH_DIR = path.join(__dirname, 'auth_info');
-const MESSAGES_FILE = path.join(__dirname, 'received_messages.json');
+// The WhatsApp session lives on the mounted volume. If it were baked into
+// the image instead, every deploy would silently unlink the bot and require
+// a fresh QR scan.
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const AUTH_DIR = path.join(DATA_DIR, 'auth_info');
+const MESSAGES_FILE = path.join(DATA_DIR, 'received_messages.json');
 
 // Ensure auth directory exists
 if (!fs.existsSync(AUTH_DIR)) {

@@ -15,9 +15,10 @@ from pathlib import Path
 import shopify_api
 import printify_api
 import whatsapp_client
+import paths
 
 # Store processed orders to avoid duplicates
-ORDERS_DB = Path(__file__).parent / "processed_orders.json"
+ORDERS_DB = Path(paths.PROCESSED_ORDERS)
 
 def load_processed_orders():
     """Load the list of orders we've already processed"""

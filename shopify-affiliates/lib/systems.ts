@@ -23,21 +23,34 @@ export interface SystemInfo {
   script: string | null;
 }
 
+/** Code and config live at the project root. */
 function projectFile(...parts: string[]) {
   return path.join(projectRoot(), ...parts);
 }
 
+/** Mutable state lives on the volume when deployed, alongside the code locally. */
+function dataFile(...parts: string[]) {
+  return path.join(process.env.DATA_DIR || projectRoot(), ...parts);
+}
+
 function readJSON<T>(relPath: string): T | null {
   try {
-    const raw = fs.readFileSync(projectFile(relPath), 'utf-8');
+    const raw = fs.readFileSync(dataFile(relPath), 'utf-8');
     return JSON.parse(raw) as T;
   } catch {
     return null;
   }
 }
 
-/** Reads a key out of the project .env without importing it into our own env. */
+/**
+ * Reads a config value. Deployed, everything arrives as real environment
+ * variables and there is no .env file at all; locally the .env is the source
+ * of truth, so check the process environment first and fall back to the file.
+ */
 function envValue(key: string): string | null {
+  const fromEnv = process.env[key];
+  if (fromEnv) return fromEnv;
+
   try {
     const raw = fs.readFileSync(projectFile('.env'), 'utf-8');
     for (const line of raw.split(/\r?\n/)) {
@@ -98,7 +111,10 @@ export async function getSystems(): Promise<SystemInfo[]> {
   const adsReady =
     isConfigured('GOOGLE_ADS_DEVELOPER_TOKEN') && isConfigured('GOOGLE_ADS_REFRESH_TOKEN');
   const claudeReady = isConfigured('ANTHROPIC_API_KEY');
-  const photosReady = fs.existsSync(projectFile('google_photos_token.pickle'));
+  // Deployed, auth comes from a refresh token; locally it's a cached pickle.
+  const photosReady =
+    isConfigured('GOOGLE_PHOTOS_REFRESH_TOKEN') ||
+    fs.existsSync(dataFile('google_photos_token.pickle'));
 
   return [
     {

@@ -13,10 +13,12 @@ from googleapiclient.http import MediaIoBaseDownload
 from io import BytesIO
 from dotenv import load_dotenv
 
+import paths
+
 load_dotenv()
 
 SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-TOKEN_FILE = 'google_drive_token.pickle'
+TOKEN_FILE = paths.GOOGLE_DRIVE_TOKEN
 CREDENTIALS_FILE = 'google_drive_credentials.json'
 
 class GoogleDriveClient:
@@ -24,25 +26,54 @@ class GoogleDriveClient:
         self.service = None
         self.authenticate()
 
+    def _creds_from_env(self):
+        """Credentials from env vars, for headless/deployed runs. See the
+        matching helper in google_photos_api.py."""
+        refresh_token = os.getenv('GOOGLE_DRIVE_REFRESH_TOKEN')
+        client_id = os.getenv('GOOGLE_OAUTH_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_OAUTH_CLIENT_SECRET')
+
+        if not all([refresh_token, client_id, client_secret]):
+            return None
+
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=SCOPES,
+        )
+        creds.refresh(Request())
+        return creds
+
     def authenticate(self):
         """Authenticate with Google Drive API"""
-        creds = None
+        creds = self._creds_from_env()
+        if creds:
+            self.service = build('drive', 'v3', credentials=creds)
+            print("✅ Google Drive authenticated (refresh token)")
+            return
 
-        # Load saved credentials
+        creds = None
         if os.path.exists(TOKEN_FILE):
             with open(TOKEN_FILE, 'rb') as token:
                 creds = pickle.load(token)
 
-        # If no valid credentials, get new ones
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
+                if os.getenv('HEADLESS') or not os.path.exists(CREDENTIALS_FILE):
+                    raise RuntimeError(
+                        "No Google Drive credentials available. On a server, set "
+                        "GOOGLE_DRIVE_REFRESH_TOKEN, GOOGLE_OAUTH_CLIENT_ID and "
+                        "GOOGLE_OAUTH_CLIENT_SECRET (run get_refresh_token.py locally)."
+                    )
                 flow = InstalledAppFlow.from_client_secrets_file(
                     CREDENTIALS_FILE, SCOPES)
                 creds = flow.run_local_server(port=0)
 
-            # Save credentials
             with open(TOKEN_FILE, 'wb') as token:
                 pickle.dump(creds, token)
 

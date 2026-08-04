@@ -1,0 +1,91 @@
+# Render blueprint for the Marino 007 command center.
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> point at this repo.
+# Secrets are all sync:false, so Render prompts for them rather than any of
+# them living in this file.
+
+services:
+  - type: web
+    name: marino-007
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter # Free instances sleep after 15 min, which drops the
+      # WhatsApp session and stops the schedulers. Not viable here.
+    region: oregon
+    healthCheckPath: /login # Public route; everything else needs a session.
+
+    disk:
+      name: marino-data
+      mountPath: /data # Matches DATA_DIR. Holds the WhatsApp session,
+        # affiliates.db, and the blog/order trackers.
+      sizeGB: 1
+
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: HEADLESS
+        value: "1"
+      - key: PORT
+        value: "3003"
+      - key: WHATSAPP_PORT
+        value: "3010"
+      - key: WHATSAPP_SERVER_URL
+        value: http://localhost:3010
+      - key: NODE_ENV
+        value: production
+
+      # --- Secrets: entered in the Render UI, never committed ---
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true # Render generates a strong random value
+
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SHOPIFY_STORE
+        sync: false
+      - key: SHOPIFY_API_KEY
+        sync: false
+      - key: SHOPIFY_API_PASSWORD
+        sync: false
+      - key: PRINTIFY_SHOP_ID
+        sync: false
+      - key: PRINTIFY_API_KEY
+        sync: false
+
+      # Google: refresh tokens from get_refresh_token.py, since a server
+      # cannot complete the interactive consent flow.
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_PHOTOS_REFRESH_TOKEN
+        sync: false
+      - key: GOOGLE_DRIVE_REFRESH_TOKEN
+        sync: false
+
+      - key: EMAIL_SENDER
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: SMTP_SERVER
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+
+      - key: MARINO_PHONE
+        sync: false
+
+      - key: BOT_OWNER
+        value: Marino Santos
+      - key: BOT_NAME
+        value: Marino 007
+      - key: BOT_BRAND
+        value: Los Iconos de la Bachata
+
+      - key: BLOG_SCHEDULE_HOUR
+        value: "9"
+      - key: BLOG_SCHEDULE_MINUTE
+        value: "0"
+      - key: BLOG_POSTS_PER_DAY
+        value: "1"

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db, { initializeDatabase } from '@/lib/db';
+import db from '@/lib/db';
 import type { Affiliate } from '@/lib/types';
 
-initializeDatabase();
+// No module-scope DB work: `next build` imports this file to collect page
+// data, and touching SQLite there segfaults the build worker. The schema is
+// ensured lazily on first query instead.
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

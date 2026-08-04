@@ -1,0 +1,43 @@
+# SECRETS - these must never enter the image. Anyone who can pull the image
+# can read its layers, so a baked-in .env is a leaked .env.
+.env
+.env.*
+!.env.example
+*.env.local
+*credentials.json
+*.pickle
+auth_info/
+tokens/
+
+# Local state - the container gets its own on the mounted volume
+affiliates.db
+*.db
+*.db-wal
+*.db-shm
+blog_tracker.json
+processed_orders.json
+received_messages.json
+blogs/
+tunnel.log
+
+# Dependencies and build output - rebuilt inside the image
+node_modules/
+shopify-affiliates/node_modules/
+shopify-affiliates/.next/
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Repo and tooling noise
+.git/
+.gitignore
+.github/
+.claude/
+*.md
+!README.md
+*.log
+.DS_Store
+
+# Windows-only helper
+start_command_center.ps1

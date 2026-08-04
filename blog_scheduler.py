@@ -15,6 +15,8 @@ from blog_generator import BlogGenerator
 from email_service import EmailService
 from dotenv import load_dotenv
 
+import paths
+
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
 
@@ -28,7 +30,7 @@ class BlogScheduler:
         self.search_client = WebSearchClient()
         self.blog_generator = BlogGenerator()
         self.email_service = EmailService()
-        self.tracking_file = 'blog_tracker.json'
+        self.tracking_file = paths.BLOG_TRACKER
         self.load_tracking()
 
     def load_tracking(self):
