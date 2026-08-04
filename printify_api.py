@@ -24,14 +24,37 @@ HEADERS = {
 }
 
 def get_shops() -> List[Dict]:
-    """Get all connected Printify shops"""
+    """Get all connected Printify shops.
+
+    /shops.json returns a bare JSON array. The previous version called
+    .get("data", []) on it, which raised and silently returned [] every time.
+    """
     try:
         url = f"{BASE_URL}/shops.json"
         response = requests.get(url, headers=HEADERS, timeout=10)
         response.raise_for_status()
-        return response.json().get("data", [])
+        body = response.json()
+        return body if isinstance(body, list) else body.get("data", [])
     except Exception as e:
         print(f"Error fetching shops: {e}")
+        return []
+
+
+def get_orders(shop_id: str, limit: int = 10) -> List[Dict]:
+    """Orders Printify already holds for a shop.
+
+    Useful for confirming the native Shopify sync is delivering, before
+    anyone considers pushing orders over the API as well.
+    """
+    try:
+        url = f"{BASE_URL}/shops/{shop_id}/orders.json"
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+        body = response.json()
+        orders = body if isinstance(body, list) else body.get("data", [])
+        return orders[:limit]
+    except Exception as e:
+        print(f"Error fetching Printify orders: {e}")
         return []
 
 def create_order(shop_id: str, order_data: Dict) -> Dict:
@@ -39,12 +62,16 @@ def create_order(shop_id: str, order_data: Dict) -> Dict:
     try:
         url = f"{BASE_URL}/shops/{shop_id}/orders.json"
 
+        # address_to is required by Printify. It was assembled by the caller
+        # and then dropped from this payload, so every submission would have
+        # been rejected. webhook_url pointed at localhost, which Printify's
+        # servers cannot reach, so it is gone too.
         payload = {
-            "external_order_id": order_data["order_id"],
+            "external_id": order_data["order_id"],
             "line_items": order_data["line_items"],
-            "shipping_method": 0,  # Standard shipping
+            "shipping_method": 1,  # 1 = standard
             "send_shipping_notification": True,
-            "webhook_url": "https://localhost:3000/printify-webhook"  # Optional webhook
+            "address_to": order_data["shipping_address"],
         }
 
         response = requests.post(url, json=payload, headers=HEADERS, timeout=10)

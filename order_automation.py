@@ -6,11 +6,15 @@ Runs every hour to:
 3. Send WhatsApp alerts to Marino Santos
 """
 
+import os
 import schedule
 import time
 import json
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import shopify_api
 import printify_api
@@ -35,80 +39,99 @@ def save_processed_orders(orders):
     with open(ORDERS_DB, 'w') as f:
         json.dump(orders, f, indent=2)
 
+# Printify's native Shopify integration already pulls orders from this store -
+# confirmed by orders sitting in Printify with external_id=None, which is what
+# the native sync produces (an API-created order carries the external_id we
+# send). Pushing over the API as well would create a SECOND copy of every
+# order: duplicate prints, duplicate shipping, duplicate charges.
+#
+# So this stays off unless someone deliberately turns it on, and the default
+# job is to watch and alert.
+PRINTIFY_AUTO_PUSH = os.getenv("PRINTIFY_AUTO_PUSH", "false").lower() == "true"
+PRINTIFY_SHOP_ID = os.getenv("PRINTIFY_SHOP_ID")
+
+
 def check_and_fulfill_orders():
-    """Main automation function - runs every hour"""
+    """Check Shopify for new orders and alert. Does not push to Printify
+    unless PRINTIFY_AUTO_PUSH is explicitly enabled."""
     print(f"\n{'='*60}")
     print(f"⏰ Order Check: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}")
 
+    if PRINTIFY_AUTO_PUSH:
+        print("⚠️  PRINTIFY_AUTO_PUSH is ON - orders will be pushed over the API.")
+        print("    Printify's native Shopify sync may already be delivering them,")
+        print("    in which case this creates duplicates. Verify before relying on it.\n")
+
     try:
-        # Get orders that need fulfillment
         orders = shopify_api.get_orders_needing_fulfillment()
 
         if not orders:
-            print("✓ No new orders to process")
+            print("✓ No unfulfilled orders")
             return
 
-        print(f"📦 Found {len(orders)} orders to process\n")
+        print(f"📦 {len(orders)} unfulfilled order(s)\n")
 
         processed = load_processed_orders()
-        new_orders = []
+        newly_seen = []
 
-        # Process each order
         for order in orders:
             order_num = str(order["order_number"])
 
-            # Skip if already processed
             if order_num in processed:
-                print(f"  ✓ Order #{order_num} already processed")
+                print(f"  · Order #{order_num} already seen")
                 continue
 
-            print(f"  📨 Processing Order #{order_num}...")
+            print(f"  📨 New order #{order_num}")
 
-            # Send to Printify
-            printify_result = printify_api.send_order_to_printify(
-                shop_id="your_shop_id",  # User needs to set this
-                shopify_order=order
+            record = {
+                "timestamp": datetime.now().isoformat(),
+                "customer": order["customer_email"],
+                "amount": order["total_price"],
+                "pushed_to_printify": False,
+            }
+
+            if PRINTIFY_AUTO_PUSH:
+                if not PRINTIFY_SHOP_ID:
+                    print("    ✗ PRINTIFY_SHOP_ID not set - skipping push")
+                else:
+                    result = printify_api.send_order_to_printify(
+                        shop_id=PRINTIFY_SHOP_ID,
+                        shopify_order=order,
+                    )
+                    if result.get("success"):
+                        print(f"    ✓ Pushed to Printify ({result.get('printify_order_id')})")
+                        record["printify_id"] = result.get("printify_order_id")
+                        record["pushed_to_printify"] = True
+                    else:
+                        print(f"    ✗ Printify push failed: {result.get('error')}")
+
+            fulfilment_line = (
+                "✓ Pushed to Printify" if record["pushed_to_printify"]
+                else "Printify handles fulfilment via its Shopify sync"
             )
+            try:
+                message = (
+                    "🎉 NEW ORDER\n"
+                    f"Order #{order_num}\n"
+                    f"Customer: {order['customer_email']}\n"
+                    f"Total: ${order['total_price']}\n"
+                    f"Items: {len(order['line_items'])} product(s)\n\n"
+                    f"{fulfilment_line}"
+                )
+                whatsapp_client.send_to_marino(message)
+                print("    ✓ WhatsApp alert sent")
+            except Exception as e:
+                print(f"    ⚠️  WhatsApp alert failed: {e}")
 
-            if printify_result.get("success"):
-                print(f"    ✓ Sent to Printify (ID: {printify_result.get('printify_order_id')})")
-                new_orders.append(order_num)
+            processed[order_num] = record
+            newly_seen.append(order_num)
 
-                # Mark as processed
-                processed[order_num] = {
-                    "timestamp": datetime.now().isoformat(),
-                    "printify_id": printify_result.get("printify_order_id"),
-                    "customer": order["customer_email"],
-                    "amount": order["total_price"]
-                }
-
-                # Send WhatsApp alert
-                try:
-                    message = f"""
-🎉 NEW ORDER RECEIVED
-Order #{order_num}
-Customer: {order['customer_email']}
-Total: ${order['total_price']}
-Items: {len(order['line_items'])} product(s)
-
-✓ Sent to Printify for fulfillment
-Status: Processing
-"""
-                    whatsapp_client.send_to_marino(message.strip())
-                    print(f"    ✓ WhatsApp alert sent to Marino")
-                except Exception as e:
-                    print(f"    ⚠️  WhatsApp alert failed: {e}")
-
-            else:
-                print(f"    ✗ Failed to send to Printify: {printify_result.get('error')}")
-
-        # Save progress
-        if new_orders:
+        if newly_seen:
             save_processed_orders(processed)
-            print(f"\n✓ Successfully processed {len(new_orders)} new orders")
+            print(f"\n✓ {len(newly_seen)} new order(s) recorded")
         else:
-            print(f"\n✓ No new orders to process")
+            print("\n✓ Nothing new")
 
     except Exception as e:
         print(f"\n✗ Error in order automation: {e}")
