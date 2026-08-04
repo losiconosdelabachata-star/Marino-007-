@@ -23,10 +23,27 @@ export async function GET() {
   }
 }
 
-/** Triggers a reconnect. `hard: true` wipes creds so a brand-new phone can link. */
+/**
+ * Triggers a reconnect, or requests a pairing code.
+ *
+ * `{ pair: "17868387137" }` asks for an 8-character code to type into the
+ * phone - easier than a QR when nobody is sitting in front of the dashboard.
+ * `{ hard: true }` wipes creds so a brand-new phone can link.
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
+
+    if (body.pair) {
+      const res = await fetch(`${BRIDGE}/pair`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: body.pair }),
+        signal: AbortSignal.timeout(15000),
+      });
+      return NextResponse.json(await res.json());
+    }
+
     const res = await fetch(`${BRIDGE}/reconnect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

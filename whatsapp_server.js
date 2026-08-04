@@ -34,6 +34,12 @@ let currentQR = null;
 let qrGeneratedAt = null;
 let lastDisconnectReason = null;
 
+// Pairing-code linking: an 8-character code typed into the phone under
+// "Link with phone number instead". No camera, and it doesn't expire every
+// 20s like the QR, so it works when nobody is sitting at the dashboard.
+let pairingCode = null;
+let pairingCodeFor = null;
+
 // Load received messages from file
 function loadMessages() {
   if (fs.existsSync(MESSAGES_FILE)) {
@@ -124,6 +130,8 @@ async function connectToWhatsApp() {
       reconnectDelay = 2000; // healthy again, reset backoff
       currentQR = null; // linked, so the QR is spent
       qrGeneratedAt = null;
+      pairingCode = null;
+      pairingCodeFor = null;
       lastDisconnectReason = null;
       console.log('✓ Connected to WhatsApp!');
     }
@@ -171,10 +179,64 @@ app.get('/qr', (req, res) => {
     return res.json({
       connected: false,
       qr: null,
+      pairing_code: pairingCode,
+      pairing_for: pairingCodeFor,
       message: 'No QR available yet. POST /reconnect to request one.',
     });
   }
-  res.json({ connected: false, qr: currentQR, generated_at: qrGeneratedAt });
+  res.json({
+    connected: false,
+    qr: currentQR,
+    generated_at: qrGeneratedAt,
+    pairing_code: pairingCode,
+    pairing_for: pairingCodeFor,
+  });
+});
+
+/**
+ * Request a pairing code instead of a QR.
+ *
+ * Body: { "phone": "17868387137" }  - country code, digits only, no '+'.
+ * The code is entered on the phone under
+ *   WhatsApp > Settings > Linked Devices > Link a Device
+ *   > "Link with phone number instead"
+ */
+app.post('/pair', async (req, res) => {
+  try {
+    if (isConnected) {
+      return res.json({ success: false, error: 'Already linked. Unlink first if you want to re-pair.' });
+    }
+
+    const phone = String(req.body?.phone || process.env.MARINO_PHONE || '').replace(/\D/g, '');
+    if (!phone || phone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'A phone number with country code is required, digits only (e.g. 17868387137).',
+      });
+    }
+
+    if (!socket) {
+      return res.status(503).json({ success: false, error: 'Socket not ready. POST /reconnect first.' });
+    }
+
+    // Baileys refuses this once credentials are registered.
+    if (socket.authState?.creds?.registered) {
+      return res.json({ success: false, error: 'This session is already registered.' });
+    }
+
+    const code = await socket.requestPairingCode(phone);
+    pairingCode = code;
+    pairingCodeFor = phone;
+
+    console.log(`\n🔗 Pairing code for +${phone}: ${code}`);
+    console.log('   Phone: WhatsApp > Linked Devices > Link a Device');
+    console.log('   > "Link with phone number instead", then type this code.\n');
+
+    res.json({ success: true, pairing_code: code, phone });
+  } catch (error) {
+    console.error('Pairing code request failed:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Force a fresh pairing cycle. `hard` wipes stored creds for a full re-link.

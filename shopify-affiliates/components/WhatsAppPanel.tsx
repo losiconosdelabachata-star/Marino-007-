@@ -6,6 +6,8 @@ interface QRState {
   reachable: boolean;
   connected: boolean;
   qr: string | null;
+  pairing_code?: string | null;
+  pairing_for?: string | null;
   message?: string;
 }
 
@@ -13,6 +15,8 @@ export default function WhatsAppPanel() {
   const [state, setState] = useState<QRState | null>(null);
   const [working, setWorking] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [showPair, setShowPair] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -49,8 +53,32 @@ export default function WhatsAppPanel() {
     }
   }
 
+  async function requestPairingCode() {
+    if (!phone.replace(/\D/g, '')) {
+      setNote('Enter the phone number with country code.');
+      return;
+    }
+    setWorking(true);
+    setNote(null);
+    try {
+      const res = await fetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pair: phone }),
+      });
+      const data = await res.json();
+      setNote(data.success ? null : data.error || 'Could not get a pairing code.');
+      setTimeout(refresh, 800);
+    } catch {
+      setNote('Could not reach the bridge.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
   const connected = state?.connected === true;
   const bridgeDown = state?.reachable === false;
+  const code = state?.pairing_code;
 
   return (
     <div className="panel p-6">
@@ -106,22 +134,77 @@ export default function WhatsAppPanel() {
             node whatsapp_server.js
           </code>
         </div>
-      ) : state?.qr ? (
+      ) : code ? (
+        <div className="text-center">
+          <p className="eyebrow mb-3">Pairing code</p>
+          <p
+            className="mono mb-1 text-3xl font-bold tracking-[0.2em]"
+            style={{ color: 'var(--gold-bright)' }}
+          >
+            {code}
+          </p>
+          {state?.pairing_for && (
+            <p className="mono mb-4 text-xs" style={{ color: 'var(--text-dim)' }}>
+              FOR +{state.pairing_for}
+            </p>
+          )}
+          <div
+            className="rounded-lg p-3 text-left text-xs leading-relaxed"
+            style={{ background: 'rgba(6,9,20,0.7)', color: 'var(--text-dim)' }}
+          >
+            On that phone:
+            <br />
+            1. WhatsApp → Settings → Linked Devices
+            <br />
+            2. Link a Device
+            <br />
+            3. <span style={{ color: 'var(--cyan)' }}>Link with phone number instead</span>
+            <br />
+            4. Type the code above
+          </div>
+          <button onClick={() => setShowPair(false)} className="btn-ghost mt-4 px-4 py-2 text-xs">
+            Show QR instead
+          </button>
+        </div>
+      ) : state?.qr && !showPair ? (
         <div className="text-center">
           {/* Baileys hands us a data URL, so a plain img is all we need. */}
           <img
             src={state.qr}
             alt="WhatsApp pairing QR code"
             className="mx-auto rounded-xl"
-            style={{ width: 220, height: 220, background: '#fff', padding: 10 }}
+            style={{ width: 200, height: 200, background: '#fff', padding: 10 }}
           />
           <p className="mt-4 text-sm font-medium">Scan with the dedicated phone</p>
           <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-dim)' }}>
             WhatsApp → Settings → Linked Devices → Link a Device
           </p>
-          <p className="mono mt-3 text-[0.65rem]" style={{ color: 'var(--text-dim)' }}>
-            REFRESHES AUTOMATICALLY
+          <button onClick={() => setShowPair(true)} className="btn-ghost mt-4 px-4 py-2 text-xs">
+            Can&apos;t scan? Use a code instead
+          </button>
+        </div>
+      ) : showPair ? (
+        <div>
+          <p className="mb-3 text-sm" style={{ color: 'var(--text-dim)' }}>
+            Get a code to type into the phone — no camera needed.
           </p>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Country code + number, e.g. 17868387137"
+            className="field mb-3 w-full px-3 py-2 text-sm"
+          />
+          <button
+            onClick={requestPairingCode}
+            disabled={working}
+            className="btn-gold w-full py-2.5 text-sm"
+          >
+            {working ? 'Requesting…' : 'Get pairing code'}
+          </button>
+          <button onClick={() => setShowPair(false)} className="btn-ghost mt-2 w-full py-2 text-xs">
+            Back to QR
+          </button>
         </div>
       ) : (
         <div className="py-6 text-center">
