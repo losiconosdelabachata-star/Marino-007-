@@ -3,11 +3,15 @@ WhatsApp Client for Marino 007
 Communicates with the Baileys WhatsApp server via HTTP
 """
 
+import os
 import requests
 import json
 from typing import Optional, Dict, List
+from dotenv import load_dotenv
 
-WHATSAPP_SERVER_URL = "http://localhost:3000"
+load_dotenv()
+
+WHATSAPP_SERVER_URL = os.getenv("WHATSAPP_SERVER_URL", "http://localhost:3010")
 
 def send_message(phone: str, message: str) -> Dict:
     """Send a WhatsApp message via the Baileys server"""

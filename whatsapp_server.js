@@ -9,7 +9,9 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-const PORT = 3000;
+// 3000-3004 are taken by other local projects (Leon Business Center, eclat,
+// barbershop, the dashboard), so default clear of them.
+const PORT = process.env.WHATSAPP_PORT || 3010;
 const AUTH_DIR = path.join(__dirname, 'auth_info');
 const MESSAGES_FILE = path.join(__dirname, 'received_messages.json');
 
