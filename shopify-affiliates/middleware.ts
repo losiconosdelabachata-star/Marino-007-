@@ -6,7 +6,11 @@ import { SESSION_COOKIE, isValidSession, isAuthConfigured } from '@/lib/auth';
  * publish blog posts and email customers, and for the WhatsApp QR - anyone
  * who scans that pairing code would take over the bot's session.
  */
-const PUBLIC_PATHS = ['/login', '/api/auth'];
+// /api/shopify handles the OAuth round trip. Shopify redirects the browser
+// back without our session cookie, so it cannot sit behind the password gate.
+// It is protected instead by HMAC signature plus a state nonce, which is the
+// stronger check for this particular flow.
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/shopify'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

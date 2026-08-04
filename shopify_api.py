@@ -12,12 +12,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SHOPIFY_STORE = os.getenv("SHOPIFY_STORE", "losiconosdelabachata.myshopify.com")
-SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")  # Client ID
-SHOPIFY_API_PASSWORD = os.getenv("SHOPIFY_API_PASSWORD")  # Secret
-API_VERSION = "2026-07"
+SHOPIFY_STORE = os.getenv("SHOPIFY_STORE", "1cddeb-2.myshopify.com")
 
-BASE_URL = f"https://{SHOPIFY_API_KEY}:{SHOPIFY_API_PASSWORD}@{SHOPIFY_STORE}/admin/api/{API_VERSION}"
+# SHOPIFY_API_KEY / SHOPIFY_API_PASSWORD are the OAuth *Client ID* and *Client
+# Secret*. Neither can authenticate the Admin API - basic-auth with them was
+# the reason every request failed. The Admin API needs an access token from
+# the OAuth handshake, sent in the X-Shopify-Access-Token header.
+SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
+API_VERSION = "2025-01"
+
+BASE_URL = f"https://{SHOPIFY_STORE}/admin/api/{API_VERSION}"
+AUTH_HEADERS = {
+    "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN or "",
+    "Content-Type": "application/json",
+}
 
 class ShopifyError(RuntimeError):
     """Raised when Shopify cannot be reached or refuses the request.
@@ -38,15 +46,15 @@ def get_recent_orders(hours: int = 1) -> List[Dict]:
     }
 
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, headers=AUTH_HEADERS, timeout=10)
     except requests.RequestException as e:
         raise ShopifyError(f"Could not reach Shopify: {e}") from e
 
     if response.status_code == 401:
         raise ShopifyError(
-            "Shopify rejected the credentials (401). SHOPIFY_API_PASSWORD must be "
-            "an Admin API access token starting with 'shpat_', not an 'shpss_' "
-            "shared secret."
+            "Shopify rejected the credentials (401). SHOPIFY_ACCESS_TOKEN is "
+            "missing or stale - visit /api/shopify/install on the dashboard to "
+            "run the OAuth handshake and mint a new one."
         )
     if response.status_code == 404:
         raise ShopifyError(
@@ -72,7 +80,7 @@ def get_order_details(order_id: str) -> Dict:
     """Get full details for a specific order"""
     try:
         url = f"{BASE_URL}/orders/{order_id}.json"
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=AUTH_HEADERS, timeout=10)
         response.raise_for_status()
         return response.json().get("order", {})
     except Exception as e:
@@ -102,7 +110,7 @@ def create_fulfillment(order_id: str, line_items: List[Dict]) -> Dict:
             }
         }
 
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, headers=AUTH_HEADERS, timeout=10)
         response.raise_for_status()
         return response.json().get("fulfillment", {})
     except Exception as e:

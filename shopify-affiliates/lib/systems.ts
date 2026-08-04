@@ -84,16 +84,18 @@ function isConfigured(key: string): boolean {
  */
 async function checkShopify(): Promise<{ status: SystemStatus; detail: string }> {
   const store = envValue('SHOPIFY_STORE');
-  const token = envValue('SHOPIFY_API_PASSWORD');
+  // SHOPIFY_API_PASSWORD is the OAuth Client Secret, not an API token. The
+  // real token comes from the handshake and lands in SHOPIFY_ACCESS_TOKEN.
+  const token = envValue('SHOPIFY_ACCESS_TOKEN');
 
-  if (!store || !token) {
-    return { status: 'not_configured', detail: 'Store or access token missing' };
+  if (!store) {
+    return { status: 'not_configured', detail: 'SHOPIFY_STORE missing' };
   }
 
-  if (token.startsWith('shpss_')) {
+  if (!token) {
     return {
       status: 'not_configured',
-      detail: 'Token is a shared secret (shpss_) — needs an Admin API token (shpat_)',
+      detail: 'Not connected — run the Shopify connect flow to get a token',
     };
   }
 
