@@ -263,7 +263,7 @@ When referencing this software, please include:
 ### Inquiries
 
 For licensing, partnerships, or usage permissions:
-Email: **losiconosdelabachata@gmail.com**
+Email: **007@marinosantos.com**
 
 ---
 
