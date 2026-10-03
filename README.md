@@ -5,7 +5,7 @@
 
 Marino 007 is an autonomous AI agent and operations hub for a bachata music brand. It watches the Shopify store, pushes orders to Printify, alerts the owner on WhatsApp, writes and publishes a daily blog from the brand's own photo archive, runs the affiliate program, and answers questions as a Claude-powered agent — all from a single deployable container.
 
-Built on **Claude Sonnet 5**, with **87 skill modules** and a live command center dashboard.
+Built on **Claude Sonnet 5**, with **88 skill modules** and a live command center dashboard.
 
 ---
 
@@ -20,7 +20,7 @@ Built on **Claude Sonnet 5**, with **87 skill modules** and a live command cente
 | **Command Center** (`shopify-affiliates/`) | Next.js dashboard — system health, affiliate roster, message board, sales analytics, and one-click ops |
 | **Affiliate Hub** | SQLite-backed affiliate tracking with referral sales attribution and outbound messaging |
 | **Google Ads** (`google_ads_api.py`) | Campaign creation and management targeting Aventura / Latin music audiences |
-| **Skills** (`skills/`) | 87 domain modules — commerce, finance, legal, music industry, social, design, and more |
+| **Skills** (`skills/`) | 88 domain modules — commerce, finance, legal, music industry, social, design, career, and more |
 
 ---
 
@@ -77,7 +77,7 @@ The dashboard at port `3003` is password-gated and has four tabs:
 | `start_command_center.ps1` | Windows one-command startup (bridge, dashboard, tunnel) |
 | `Dockerfile` / `render.yaml` | One-container build and Render blueprint |
 | `DEPLOY.md` | Full deployment walkthrough |
-| `skills/` | 87 skill modules |
+| `skills/` | 88 skill modules |
 
 ---
 
@@ -177,7 +177,7 @@ Full walkthrough in **[DEPLOY.md](DEPLOY.md)**.
 
 ## Skills
 
-87 modules across every domain the brand touches:
+88 modules across every domain the brand touches:
 
 **Commerce & Ops** — shopify · shopify-ad-apps · stripe-payments · klaviyo · task-manager · calendar-manager · api-gateway · healthcheck
 
@@ -189,7 +189,7 @@ Full walkthrough in **[DEPLOY.md](DEPLOY.md)**.
 
 **Finance & Investing** — investing-analyst · us-stock-analysis · stock-strategy-backtester · stock-study · market-sentiment-pulse · real-estate-investing · storyclaw-alpaca-trading · trading-devbox · rollhub-analyst · credit · credit-repair-skill · card-optimizer · betting
 
-**Business & Legal** — business · business-plan · business-model-canvas · proposal-writer · grant · grant-writing-framework · nyc-funds-finder · legal-ai-counsel · ai-legal-standard-v2 · normieclaw-legal-docs-pro · fiverr
+**Business & Legal** — business · business-plan · business-model-canvas · proposal-writer · grant · grant-writing-framework · nyc-funds-finder · legal-ai-counsel · ai-legal-standard-v2 · normieclaw-legal-docs-pro · fiverr · career-copilot
 
 **Health & Wellbeing** — therapy · mens-mental-health · nutritionist · training-and-nutrition-coach · sensual-makeup
 
@@ -202,7 +202,7 @@ Full walkthrough in **[DEPLOY.md](DEPLOY.md)**.
 ## Roadmap
 
 - [x] Claude-powered agent with persistent memory
-- [x] 87 skill modules loaded
+- [x] 88 skill modules loaded
 - [x] WhatsApp bridge with QR *and* pairing-code linking
 - [x] Shopify OAuth + Printify fulfillment, duplicate-safe
 - [x] Blog engine — Photos + Drive + web research → Claude → HTML + email
